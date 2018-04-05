@@ -1,99 +1,86 @@
 /*
- * GOTO3.ino Written by Igor Ovchinnikov 24/07/2016
+ * GOTO3LF.ino Written by Igor Ovchinnikov 12/10/2017
  */
 
-//GOTO3Config.h должен находиться в той же директории, что GOTO3.ino
+//Все файлы #include "ххххх.h"должны находиться в той же директории, что GOTO3LFG.ino
 
-#include "GOTO3Config.h"
+//#include "G3ConMy.h"
+#include "G3ConLe.h"
+#include "Maths.h"
 
-//#define ENABLE_XYZ_PIN 8 //Enable X,Y,Z pin
-//#define DX_STEP_PIN  5   //Контакт ардуино идущий на STEP драйвера X
-//#define DX_DIR_PIN   2   //Контакт ардуино идущий на DIR  драйвера X
-//#define DX_FORCE_PIN 9   //Разгонный пин драйвера X
-//#define DY_STEP_PIN  6   //Контакт ардуино идущий на STEP драйвера Y
-//#define DY_DIR_PIN   3   //Контакт ардуино идущий на DIR  драйвера Y
-//#define DY_FORCE_PIN 10  //Разгонный пин драйвера Y
-//#define X_JOY_SENCE  A6  //Сенсор оси Х джойстика
-//#define Y_JOY_SENCE  A7  //Сенсор оси У джойстика
-//#define SW_JOY_SENCE A3  //Сенсор кнопки джойстика
-//#define DZ_STEP_PIN  7   //Контакт ардуино идущий на STEP драйвера Z
-//#define DZ_DIR_PIN   4   //Контакт ардуино идущий на DIR  драйвера Z
-//
-//int iStepsDX  =   48;    //Полных шагов на 1 оборот двигателя X
-//int iStepsXPS =  250;    //Полных шагов в секунду на двигателе X
-//int iXStepX   =   16;    //Кратность шага драйвера X
-//double dRDX   = 1780.69; //Передаточное число редуктора X
-//
-//int iStepsDY  =   96;    //Полных шагов на 1 оборот двигателя Y
-//int iStepsYPS = 5000;    //Полных шагов в секунду на двигателе Y
-//int iYStepX   =    4;    //Кратность шага драйвера Y
-//double dRDY   = 3168.00; //Передаточное число редуктора Y
+int imStepsXPS; //Микрошагов в секунду на двигателе X задается в Force_X()
+int imStepsYPS; //Микрошагов в секунду на двигателе Y задается в Force_Y()
 
-int imStepsXPS = iStepsXPS*iXStepX; //Микрошагов в секунду на двигателе X
-int imStepsYPS = iStepsYPS*iYStepX; //Микрошагов в секунду на двигателе Y
+unsigned long ulSPRA; //Микрошагов двигателя X на полный оборот оси прямого восхождения задается в Force_X()
+unsigned long ulSPDE; //Микрошагов двигателя Y на полный оборот оси склонения задается в Force_Y()
 
-unsigned long ulSPRA = iStepsDX*dRDX*iXStepX; //Микрошагов двигателя X на полный оборот оси прямого восхождения
-unsigned long ulSPDE = iStepsDY*dRDY*iYStepX; //Микрошагов двигателя Y на полный оборот оси склонения
+double drRaPerStep;  //Единиц прямого восхождения на 1 шаг двигателя задается в Force_X()
+double drDePerStep;  //Единиц склонения на 1 шаг двигателя задается в Force_Y()
 
-const unsigned long StarMSPS=86164091; //Милисекунд в Звездных сутках
+double drDRaPerStep; //Поправка вращения Земли на 1 шаг ДПВ задается в Force_X()
+double drDDePerStep; //Поправка на 1 шаг ДПВ задается в Force_Y()
 
-double udRAStepsPMS=double(ulSPRA)/double(StarMSPS); //Микрошагов двигателя X на 1 мс
+unsigned long StarMSPS=86164091; //Милисекунд в Звездных сутках
+
+double dRaStepsPms; //Микрошагов двигателя X на 1 мс задается в Force_X()
 
 //int iStDX = -1;      //Исходное направление шага двигателя Х
 //int iStDY =  1;      //Исходное направление шага двигателя Y
 int iMovement = 0;   //Может пригодиться 
 int iLastMovement=0; //Может пригодиться
 
-unsigned long ulMilisec=0;   //Виртуальное время трекера
+double ulMilisec=0.0;   //Виртуальное время трекера
+double dStartTimer=0.0; //Только для отладки
 unsigned long ulPortTimer=0; //Таймер порта
 
 boolean bDebug  = false;  //Режим отладки
 boolean bRun    = true;   //Трекинг включен изначально
 boolean bLCD    = false;  //Скоро пригодится
-boolean bForceX = false;  //Ускоренный режим Х
-boolean bForceY = false;  //Ускоренный режим Y
+boolean bForceX = true;   //Ускоренный режим Х
+boolean bForceY = true;   //Ускоренный режим Y
 boolean bAlignment=false; //Монтировка не выровнена
 boolean bFocus=false;     //Фокусер выключен
 
-unsigned long ulRA=0;   //Текущее (исходное) значение прямого восхождения
-unsigned long ulDE=0;   //Текущее (исходное) значение склонения
-unsigned long ulToRA=0; //Целевое значение прямого восхождения
-unsigned long ulToDE=0; //Целевое значение склонения
+//unsigned long ulRA=0;   //Текущее (исходное) значение прямого восхождения
+//unsigned long ulDE=0;   //Текущее (исходное) значение склонения
+//unsigned long ulToRA=0; //Целевое значение прямого восхождения
+//unsigned long ulToDE=0; //Целевое значение склонения
 
-const unsigned long MVRA = 0xFFFFFFFF;  //Максимальное значение величины прямого восхождения
-const unsigned long MVDE = 0xFFFFFFFF;  //Максимальное значение величины склонения
+struct RaRa {double AtX; double AtY; double ToX; double ToY; int FLXY;}; //Координаты наведения в радианах
 
-unsigned long VRAperSTEP=MVRA/ulSPRA; //Единиц прямого восхождения на 1 шаг двигателя
-unsigned long VDEperSTEP=MVDE/ulSPDE; //Единиц склонения на 1 шаг двигателя
+RaRa RaDe  {0.0, 0.0, 0.0, 0.0, 0}; //Исходные и целевые RaDe
 
-unsigned long dVRAperSTEP=MVRA/StarMSPS*1000/imStepsXPS; //Поправка вращения Земли на 1 шаг ДПВ
-unsigned long dVDEperSTEP=7; //Поправка (доворот) ДСК в единицах СК на 1 шаг ДСК
+const unsigned long ulMaxValue = 0xFFFFFFFF;  //Максимальное значение величины unsigned long
 
 String STR= "", STR1="", STR2="";
+byte P[7], H[8], W[8];
 
 //GOTO3.h должен находиться в той же директории, что GOTO3.ino
 
 #include "GOTO3.h"
+#include "MTime.h"
 
 int AskControl()
 {
-  AscFoSw();
   return AskJOY();
 }
 
-String GetString ()
+int GetString (void)
 {
-  String STR="";
+  int GetString=0;
+  STR="";
   char c;
-  if (!Serial.available() && ((millis()-ulPortTimer) >= 1000)) {ulPortTimer=millis(); STR="e"; return STR;}
-  while (Serial.available())  //если есть что читать;
+  while (Serial.available()) //если есть что читать;
   {
-    c = Serial.read();       //читаем символ
-    if (c!='\n' && c!='\r' ) //если это не спецсимвол прибавляем к строке
-    STR += c;
-   delay(1); //Необходимая задержка цикла, для синхронизации порта при 9600 бит/сек
+   c = Serial.read(); //читаем символ
+   STR += c;
+   GetString+=1;
+   delay(1); //Задержка при считывании каждого символа, до 06/06/17 была 2 мс
+   if (STR.length()==1&&c=='P') {GetString+=Serial.readBytes(P,7); if(GetString==8) Serial.print("#");}
+   if (STR.length()==1&&c=='H') {GetString+=Serial.readBytes(H,8); if(GetString==9) Serial.print("#");}
+   if (STR.length()==1&&c=='W') {GetString+=Serial.readBytes(W,8); if(GetString==9) Serial.print("#");}
   }
-  return STR;
+  return GetString;
 }
 
 int GetSubStr ()
@@ -111,8 +98,22 @@ void action(String STRA)
   cAction=STRA.charAt(0);
   switch (cAction)
   {
-    case 'e': {Serial.print(HexTo8D(ulRA)); Serial.print(ulRA,HEX); Serial.print(","); Serial.print(HexTo8D(ulDE)); Serial.print(ulDE,HEX); Serial.print("#"); break;}
+    case '?': {Serial.print(char(0)); Serial.print("#"); break;}
+    case 'E': {Serial.print(HexToStr(RaToUL(RaDe.AtX,ulMaxValue)>>16,4)+','+HexToStr(RaToUL(RaDe.AtY,ulMaxValue)>>16,4)+'#'); break;}     
+    case 'e': {Serial.print(HexToStr(RaToUL(RaDe.AtX,ulMaxValue),8)); Serial.print(","); Serial.print(HexToStr(RaToUL(RaDe.AtY,ulMaxValue),8)); Serial.print("#"); break;}
+    case 'H': {SetTime();  Serial.print("#"); break;}
+    case 'h': {SendTime(); break;}
+    case 'J': {if(true) Serial.print(char(1)); else Serial.print(char(0)); Serial.print("#"); break;}
+    case 'K': {GetSubStr(); Serial.print(STR1+"#"); break;}
+    case 'L': {if (RaDe.FLXY==0) Serial.print("0#"); else Serial.print("1#"); break;}
+    case 'm': {Serial.print(char(6)); Serial.print("#"); break;} // 6 - Edvanced GT
+    case 'M': {RaDe.ToX=RaDe.AtX; RaDe.ToY=RaDe.AtY; RaDe.FLXY=0; Serial.print("#"); break;}           
     case 'r': {To_PRADEC(); Serial.print("#"); break;}
+    case 't': {Serial.print(char(2)); Serial.print("#"); break;}
+    case 'V': {Serial.print("12#"); break;} //Версия протокола 
+    case 'W': {SetLatLon();  Serial.print("#"); break;}
+    case 'w': {SendLatLon(); Serial.print("#"); break;}
+    default:  {Serial.print("#"); break;}
   };
 }
 
@@ -125,8 +126,10 @@ int Force_X(boolean bForce)
    digitalWrite(DX_FORCE_PIN, LOW);
    imStepsXPS = iStepsXPS*iXSX; //Шагов в секунду на двигателе X
    ulSPRA = iStepsDX*dRDX*iXSX; //Шагов двигателя X на полный оборот оси прямого восхождения
-   VRAperSTEP=MVRA/ulSPRA;      //Единиц прямого восхождения на 1 шаг двигателя
-   dVRAperSTEP=MVRA/StarMSPS*1000/imStepsXPS; //Поправка вращения Земли на 1 шаг ДПВ
+   drRaPerStep=drMaxValue/double(ulSPRA); //Изменение прямого восхождения за 1 шаг двигателя
+   dRaStepsPms=double(ulSPRA)/double(StarMSPS); //Микрошагов двигателя X на 1 мс
+ //  dRaStepsPms=(double(imStepsXPS)/1000.0);
+   drDRaPerStep=drMaxValue/double(StarMSPS)*1000.0/double(imStepsXPS); //Поправка вращения Земли на 1 шаг ДПВ
    bForceX=true;
  }
  if(bForceX && !bForce) //Включаем микрошаговый режим
@@ -135,8 +138,10 @@ int Force_X(boolean bForce)
    digitalWrite(DX_FORCE_PIN, HIGH);
    imStepsXPS = 500; //Микрошагов в секунду на двигателе X
    ulSPRA = iStepsDX*dRDX*iXSX; //Микрошагов двигателя X на полный оборот оси прямого восхождения
-   VRAperSTEP=MVRA/ulSPRA;      //Единиц прямого восхождения на 1 шаг двигателя
-   dVRAperSTEP=MVRA/StarMSPS*1000/imStepsXPS; //Поправка вращения Земли на 1 шаг ДПВ
+   drRaPerStep=drMaxValue/double(ulSPRA); //Изменение прямого восхождения за 1 шаг двигателя
+   dRaStepsPms=double(ulSPRA)/double(StarMSPS); //Микрошагов двигателя X на 1 мс
+//   dRaStepsPms=(double(imStepsXPS)/1000.0);
+   drDRaPerStep=drMaxValue/double(StarMSPS)*1000.0/double(imStepsXPS); //Поправка вращения Земли на 1 шаг ДПВ
    bForceX=false;
   }
 }
@@ -150,8 +155,8 @@ int Force_Y(boolean bForce)
     digitalWrite(DY_FORCE_PIN, LOW);
     imStepsYPS = iStepsYPS*iYSX; //Шагов в секунду на двигателе Y
     ulSPDE = iStepsDY*dRDY*iYSX; //Шагов двигателя Y на полный оборот оси склонений
-    VDEperSTEP=MVDE/ulSPDE;      //Единиц склонения на 1 шаг двигателя
-    dVDEperSTEP=0;               //Поправка (доворот) ДСК в единицах СК на 1 шаг ДСК
+    drDePerStep=drMaxValue/double(ulSPDE); //Изменение склонения за 1 шаг двигателя
+    drDDePerStep=0.0; //Поправка (доворот) ДСК в единицах радианах на 1 шаг ДСК
     bForceY=true;
    }
   if(bForceY && !bForce) //Включаем микрошаговый режим
@@ -160,8 +165,8 @@ int Force_Y(boolean bForce)
     digitalWrite(DY_FORCE_PIN, HIGH);
     imStepsYPS = 500; //Микрошагов в секунду на двигателе Y
     ulSPDE = iStepsDY*dRDY*iYSX; //Микрошагов двигателя Y на полный оборот оси склонений
-    VDEperSTEP=MVDE/ulSPDE;      //Единиц склонения на 1 шаг двигателя
-    dVDEperSTEP=7;               //Поправка (доворот) ДСК в единицах СК на 1 шаг ДСК
+    drDePerStep=drMaxValue/double(ulSPDE); //Изменение склонения за 1 шаг двигателя
+    drDDePerStep=0.0; //Поправка (доворот) ДСК в радианах на 1 шаг ДСК
     bForceY=false;
   }
 }
@@ -170,48 +175,48 @@ void To_PRADEC(void)
 {
   int DirectRA=0;
   int DirectDE=0;
-  unsigned long uldRA=0;
-  unsigned long uldDE=0;
+  double drRa=0.0; // unsigned long uldRA=0;
+  double drDe=0.0; // unsigned long uldDE=0;
   unsigned long ulStartMilis=millis();
 
   GetSubStr ();
-  ulToRA=StrToHEX (STR1);
-  ulToDE=StrToHEX (STR2);
+  RaDe.ToX=ULToDRad(StrToHex(STR1),ulMaxValue);
+  RaDe.ToY=ULToDRad(StrToHex(STR2),ulMaxValue);
   
   Force_X(true);
   Force_Y(true);
   
-  if (ulToRA > ulRA) {uldRA = (ulToRA-ulRA); DirectRA=  1;}
-  if (ulToRA < ulRA) {uldRA = (ulRA-ulToRA); DirectRA= -1;}
-  if (uldRA > MVRA/2) {uldRA = MVRA-uldRA; DirectRA = -(DirectRA);}
+  if (RaDe.ToX > RaDe.AtX) {drRa = (RaDe.ToX-RaDe.AtX); DirectRA=  1;}
+  if (RaDe.ToX < RaDe.AtX) {drRa = (RaDe.AtX-RaDe.ToX); DirectRA= -1;}
+  if (drRa>drMaxValue/2.0) {drRa = drMaxValue-drRa; DirectRA = -(DirectRA);}
 
-  if (ulToDE > ulDE) {uldDE = (ulToDE-ulDE); DirectDE=  1;}
-  if (ulToDE < ulDE) {uldDE = (ulDE-ulToDE); DirectDE= -1;}
-  if (uldDE > MVDE/2) {uldDE = MVDE-uldDE; DirectDE = -(DirectDE);}
+  if (RaDe.ToY > RaDe.AtY) {drDe = (RaDe.ToY-RaDe.AtY); DirectDE=  1;}
+  if (RaDe.ToY < RaDe.AtY) {drDe = (RaDe.AtY-RaDe.ToY); DirectDE= -1;}
+  if (drDe>drMaxValue/2.0) {drDe = drMaxValue-drDe; DirectDE = -(DirectDE);}
   
-  if (uldRA > MVRA/2) return; //Ошибка в расчете шагов по прямому восхождению
-  if (uldDE > MVDE/2) return; //Ошибка в расчете шагов по склонению
+  if (drRa>drMaxValue/2.0) return; //Ошибка в расчете шагов по прямому восхождению
+  if (drDe>drMaxValue/2.0) return; //Ошибка в расчете шагов по склонению
   
-  while ((((uldRA > VRAperSTEP) && iStDX!=0) || ((uldDE > VDEperSTEP) && iStDY!= 0)) && bAlignment)
+  while ((((drRa > drRaPerStep) && iStDX!=0) || ((drDe > drDePerStep) && iStDY!= 0)) && bAlignment)
   {
-    if (uldRA > VRAperSTEP)
+    if (drRa > drRaPerStep)
     {
-      if (DirectRA > 0) {Stepper_X_step(-iStDX); uldRA-=(VRAperSTEP+dVRAperSTEP); ulRA+=(VRAperSTEP+dVRAperSTEP);}
-      if (DirectRA < 0) {Stepper_X_step( iStDX); uldRA-=(VRAperSTEP-dVRAperSTEP); ulRA-=(VRAperSTEP-dVRAperSTEP);}
-      if (uldRA > MVRA/2) uldRA =0;
+      if (DirectRA > 0) {Stepper_X_step(-iStDX); drRa-=(drRaPerStep+drDRaPerStep); RaDe.AtX+=(drRaPerStep+drDRaPerStep);}
+      if (DirectRA < 0) {Stepper_X_step( iStDX); drRa-=(drRaPerStep-drDRaPerStep); RaDe.AtX-=(drRaPerStep-drDRaPerStep);}
+      if (drRa>drMaxValue/2.0) drRa=0.0;
     } else Force_X(false);
-    if (uldDE > VDEperSTEP)
+    if (drDe > drDePerStep)
     {
-      if (DirectDE > 0) {Stepper_Y_step(-iStDY); uldDE-=(VDEperSTEP+dVDEperSTEP); ulDE+=(VDEperSTEP+dVDEperSTEP);}
-      if (DirectDE < 0) {Stepper_Y_step( iStDY); uldDE-=(VDEperSTEP+dVDEperSTEP); ulDE-=(VDEperSTEP+dVDEperSTEP);}
-      if (uldDE > MVDE/2) uldDE =0;
+      if (DirectDE > 0) {Stepper_Y_step(-iStDY); drDe-=(drDePerStep+drDDePerStep); RaDe.AtY+=(drDePerStep+drDDePerStep);}
+      if (DirectDE < 0) {Stepper_Y_step( iStDY); drDe-=(drDePerStep+drDDePerStep); RaDe.AtY-=(drDePerStep+drDDePerStep);}
+      if (drDe>drMaxValue/2.0) drDe=0.0;
     } else Force_Y(false);
    if ((millis()-ulStartMilis)>1000) {bLCD=false; /*LCDPrint();*/ STR="e"; action(STR); ulStartMilis=millis();}
   }
   if (!bAlignment)  //Первая команда GOTO задает координаты наведения телескопа, без его реального перемещения
   {
-    ulRA=ulToRA;
-    ulDE=ulToDE;
+    RaDe.AtX=RaDe.ToX; // ulRA=ulToRA;
+    RaDe.AtY=RaDe.ToY; // ulDE=ulToDE;
     bAlignment=true;
   }
   bLCD=false;
@@ -259,7 +264,7 @@ void reaction () //Обработка команд ПУ
      }
     if ((iKey & 256)==256) 
      {
-     if(!bRun) {bRun=true;  bLCD=false; bForceX = true; Force_X(false); ulMilisec=millis();} //Включить  ведение  (Tracking ON)
+     if(!bRun) {bRun=true;  bLCD=false; bForceX = true; Force_X(false); ulMilisec=millis(); dStartTimer=ulMilisec;} //Включить  ведение  (Tracking ON)
      else      {bRun=false; bLCD=false;} //Отключить ведение (Tracking OFF)
      iMovement=iMovement | 256;
      }
@@ -267,58 +272,121 @@ void reaction () //Обработка команд ПУ
   if (iMovement!=0) ulMilisec=millis(); 
  } 
 
+void p(void)
+{
+ if (P[0]==1) //PHD2
+   {
+    if(P[1]==17&&P[2]==71&&P[6]==1) ; // lcd.print (" PHD2 Connected ");
+   }
+  if (P[0]==2) //Монтировка, фиксированные скорости
+   {
+    if(P[1]==16) //Ось Х
+    {
+     if(P[2]==36&&P[3]>=1&&P[3]<=6) {Force_X(false); Stepper_X_step(iStDX*P[3]);}      //По Х вправо
+     if(P[2]==36&&P[3]>=7&&P[3]<=9) {Force_X(true);  Stepper_X_step(iStDX*(P[3]-6));}  //По Х вправо
+     if(P[2]==37&&P[3]>=1&&P[3]<=6) {Force_X(false); Stepper_X_step(-iStDX*P[3]);}     //По Х влево
+     if(P[2]==37&&P[3]>=7&&P[3]<=9) {Force_X(true);  Stepper_X_step(-iStDX*(P[3]-6));} //По Х влево
+     if(P[2]==39) ; //Стоп Х
+     if(P[2]==254&&P[6]==2) Serial.print("#"); //Ось Х управляется
+    }
+    if(P[1]==17) //Ось Y
+    {
+     if(P[2]==36 && P[3]>=1 && P[3]<=6) {Force_Y(false); Stepper_Y_step(iStDY*P[3]);}      //По Y вверх
+     if(P[2]==36 && P[3]>=7 && P[3]<=9) {Force_Y(true);  Stepper_Y_step(iStDY*(P[3]-6));}  //По Y вверх
+     if(P[2]==37 && P[3]>=1 && P[3]<=6) {Force_Y(false); Stepper_Y_step(-iStDY*P[3]);}     //По Y вниз
+     if(P[2]==37 && P[3]>=7 && P[3]<=9) {Force_Y(true);  Stepper_Y_step(-iStDY*(P[3]-6));} //По Y вниз
+     if(P[2]==39) ; //Стоп У
+     if(P[2]==254&&P[6]==2) Serial.print("#"); //Ось У управляется
+    }
+   }
+  if (P[0]==3) //Монтировка, Push (толчки)
+   {
+    if(P[1]==16) //Ось Х
+    {
+     if(P[2]==38&&P[3]==13)  {Force_X(false); Stepper_X_step(iStDX*P[4]);} //По Х вправо P[4]*10 ms
+     if(P[2]==38&&P[3]==243) {Force_X(false); Stepper_X_step(-iStDX*P[4]);} //По Х влево  P[4]*10 ms
+    }
+    if(P[1]==17) //Ось Y
+    {
+     if(P[2]==38&&P[3]==13)  {Force_Y(false); Stepper_Y_step( iStDY*P[4]);} //По Y вверх P[4]*10 ms
+     if(P[2]==38&&P[3]==243) {Force_Y(false); Stepper_Y_step(-iStDY*P[4]);} //По Y вниз  P[4]*10 ms
+    }
+   }
+   if (P[0]==4) ; //Остановка монтировки
+}
+
 void setup()
 {
+  StarMSPS=StarMSPS-lDMSS*((double)StarMSPS/(double)86400000); //Корректировка внутреннего таймера millis()
   pinMode(ENABLE_XYZ_PIN,  OUTPUT);  // ENABLE XYZ PIN
   digitalWrite(ENABLE_XYZ_PIN, LOW); // LOW
   pinMode(DX_STEP_PIN,  OUTPUT);     // DX STEP PIN
   digitalWrite(DX_STEP_PIN, LOW);    // LOW
   pinMode(DX_DIR_PIN,  OUTPUT);      // DX DIR PIN
   digitalWrite(DX_DIR_PIN, LOW);     // LOW
+  pinMode(DX_SW_PIN, INPUT_PULLUP);  // HIGH
   pinMode(DX_FORCE_PIN,  OUTPUT);    // DX FORCE PIN
   digitalWrite(DX_FORCE_PIN, HIGH);  // HIGH
   pinMode(DY_STEP_PIN,  OUTPUT);     // DY STEP PIN
   digitalWrite(DY_STEP_PIN, LOW);    // LOW
   pinMode(DY_DIR_PIN,  OUTPUT);      // DY DIR PIN
   digitalWrite(DY_DIR_PIN, LOW);     // LOW
+  pinMode(DY_SW_PIN, INPUT_PULLUP);  // HIGH
   pinMode(DY_FORCE_PIN,  OUTPUT);    // DY FORCE PIN
   digitalWrite(DY_FORCE_PIN, HIGH);  // HIGH
   pinMode(DZ_STEP_PIN,  OUTPUT);     // DZ STEP PIN
   digitalWrite(DZ_STEP_PIN, LOW);    // LOW
   pinMode(DZ_DIR_PIN,  OUTPUT);      // DZ DIR PIN
   digitalWrite(DZ_DIR_PIN, LOW);     // LOW
-  pinMode(LIHT_FOC_PIN, OUTPUT);     // Пин светодиода фокусера 
-  analogWrite(LIHT_FOC_PIN,0);       // выключен
-  pinMode(SW_FOC_SENCE, INPUT_PULLUP); // Сенсор кнопки фокусера
   pinMode(SW_JOY_SENCE, INPUT_PULLUP); // Сенсор кнопки джойстика
   pinMode(X_JOY_SENCE, INPUT);         // Сенсор оси X джойстика
   pinMode(Y_JOY_SENCE, INPUT);         // Сенсор оси Y джойстика
+  pinMode(PW_JOY_SENCE, INPUT_PULLUP); // Питание джойстика отсюда
   pinMode(13,  OUTPUT);  // LED на плате ардуино
   digitalWrite(13, LOW); // Выключен
   Serial.begin(9600);    // Подключаем COM порт
+  Serial.setTimeout(10); // Максимальная задержка при чтении байтов из порта
   Serial.flush();        // Сбрасываем содержимое COM порта
-  ulMilisec=millis();     // Фиксируем время начала работы
+  Force_X(!bForceX);     // Инициализация переменных движения Х
+  Force_Y(!bForceY);     // Инициализация переменных движения У
+  ulMilisec=millis();    // Фиксируем время начала работы
  }
 
 void loop()
 {
- long LoopTime=0;
- long StepsNeed=0;
- STR = GetString();
- action(STR);
+ double LoopTime;
+ double ddLST;   //Только для отладки
+ int iH, iM, iS; //Только для отладки
+ long StepsNeed;
+ 
+ if (GetString()>0) action(STR); else if((millis()-ulPortTimer)>=1000) {action("e"); ulPortTimer=millis();}
+ p();
  reaction ();
+ 
  if(bRun)
  {
- Force_X(false); //Микрошаговый режим
- LoopTime=millis()-ulMilisec;
- StepsNeed=LoopTime*udRAStepsPMS;
- if(StepsNeed>=1)
+  Force_X(false); //Микрошаговый режим
+  LoopTime=millis()-ulMilisec;
+  StepsNeed=double(LoopTime)*dRaStepsPms;
+  if(StepsNeed>=1)
   {
-   digitalWrite(13, HIGH);    // Зажигаем LCD
    Stepper_X_step(StepsNeed*iStDX);  // Шагаем
-   ulMilisec+=double(StepsNeed)/udRAStepsPMS; // Виртуальное время трекера
+   ulMilisec+=(double(StepsNeed)/dRaStepsPms); // Виртуальное время трекера
   }
- if (bDebug) {Serial.print(" StepsNeed "); Serial.print(StepsNeed); Serial.print(" udRAStepsPMS "); Serial.println(udRAStepsPMS);}
- digitalWrite(13, LOW); // Тушим LCD
+ if (bDebug)
+  {
+   Serial.print("StepsNeed: "); Serial.print(StepsNeed);
+   Serial.print(" dRaStepsPms: "); Serial.print(dRaStepsPms,5);
+   Serial.print(" SystemTime: "); Serial.print(millis()/1000);
+   Serial.print(" MountTime: "); Serial.print(ulMilisec/1000);
+   Serial.print(" = ");
+   ddLST=(ulMilisec-dStartTimer)/(double)StarMSPS*24.0;
+   iH=int(ddLST);
+   iM=int((ddLST-iH)*60.0);
+   iS=int(((ddLST-iH)-iM/60.0)*60.0*60.0);
+   Serial.print(iH); Serial.print(":");
+   Serial.print(iM); Serial.print(":");
+   Serial.println(iS);  
+  }
  }
 }

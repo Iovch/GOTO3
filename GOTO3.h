@@ -1,6 +1,16 @@
 /*
- * GOTO3.h Written by Igor Ovchinnikov 24/07/2016
+ * GOTO3.h Written by Igor Ovchinnikov 12/10/2017
  */
+
+void SetStDX(void)
+{
+ if(analogRead(DX_SW_PIN)>512) iStDX= -1; else iStDX= 1;
+}
+
+void SetStDY(void)
+{
+ if(analogRead(DY_SW_PIN)>512) iStDY=1; else iStDY=-1; 
+}
  
 long Stepper_step(long ipSteps, unsigned uStepPin, unsigned uDirPin, unsigned uStepsPS)
 {
@@ -13,10 +23,11 @@ long Stepper_step(long ipSteps, unsigned uStepPin, unsigned uDirPin, unsigned uS
 
  while (iSteps>0)
  {
+  digitalWrite(13, HIGH);        // Зажигаем LCD
   digitalWrite(uStepPin,  HIGH);
   delay(1000/uStepsPS);
-  delayMicroseconds(1000*(1000%uStepsPS));
   digitalWrite(uStepPin,  LOW);
+  digitalWrite(13, LOW);         // Тушим LCD
   iSteps--;
   if (ipSteps>0) lRetVal++; else lRetVal--;
  }
@@ -36,20 +47,6 @@ void Stepper_Y_step(int ipSteps)
 void Stepper_Z_step(int ipSteps)
 {
   Stepper_step(ipSteps, DZ_STEP_PIN, DZ_DIR_PIN, imStepsZPS);
-}
-
-void AscFoSw(void)
-{
- if(analogRead(SW_FOC_SENCE)<200)
- {
-  bFocus=true;
-  analogWrite(LIHT_FOC_PIN,150); // Светодиод фокусера включен
- }
- else
- {
-  bFocus=false;
-  analogWrite(LIHT_FOC_PIN,0); // Светодиод фокусера выключен
- }
 }
 
 // Функция int AskJoy() возвращает при ее вызове следующие значения:
@@ -73,70 +70,46 @@ int AskJOY()
   iA1 = analogRead(X_JOY_SENCE);
   iA2 = analogRead(Y_JOY_SENCE);
   iA3 = analogRead(SW_JOY_SENCE);
-    
-  if(iA1<25)                { iRetValue=iRetValue | 16; } // Полный шаг X+
-  if(iA1>=25 && iA1 < 490)  { iRetValue=iRetValue |  1; } // Микрошаг X+
-  if(iA1>520 && iA1<=1000)  { iRetValue=iRetValue |  4; } // Микрошаг X-
-  if(iA1>1000)              { iRetValue=iRetValue | 64; } // Полный шаг X-
+
+  if(!bRun) 
+  {
+  if(iA1<10)              { iRetValue=iRetValue | 16; } // Полный шаг X+
+  if(iA1>=10 && iA1 < 40) { iRetValue=iRetValue |  1; } // Микрошаг X+
+  if(iA1> 70 && iA1<= 90) { iRetValue=iRetValue |  4; } // Микрошаг X-
+  if(iA1>90  && iA1<=500) { iRetValue=iRetValue | 64; } // Полный шаг X-
+  }
   
-  if(iA2<25)                { iRetValue=iRetValue | 32; } // Полный шаг Y+
-  if(iA2>=25  && iA2 < 490) { iRetValue=iRetValue |  2; } // Микрошаг Y+
-  if(iA2>510  && iA2<=1000) { iRetValue=iRetValue |  8; } // Микрошаг Y-
-  if(iA2>1000)              { iRetValue=iRetValue | 128;} // Полный шаг Y-
+  if(iA2<10)              { iRetValue=iRetValue | 32; } // Полный шаг Y+
+  if(iA2>=10 && iA2 < 40) { iRetValue=iRetValue |  2; } // Микрошаг Y+
+  if(iA2>70  && iA2<= 90) { iRetValue=iRetValue |  8; } // Микрошаг Y-
+  if(iA2>90  && iA2<=500) { iRetValue=iRetValue | 128;} // Полный шаг Y-
 
   if(iA3<500) {iRetValue=iRetValue | 256; delay(250);}    // Включить/отключить трекинг
-
+ 
+  if(iA1>0) SetStDX(); //Установка направления вращения оси Х (задержка 0,1 мс)
+  if(iA2>0) SetStDY(); //Установка направления вращения оси Y (задержка 0,1 мс)
+   
   return iRetValue;
 }
 
-unsigned long StrToHEX (String STR)
+void SetLatLon(void)
 {
-  int  i;
-  char c;
-  unsigned long ulVal=0;
-  for (i=0; i<STR.length(); i++)
-  {
-   ulVal=ulVal*16;
-   c=STR.charAt(i);
-   switch (c) 
-    {
-      case 'f': ;
-      case 'F': ulVal++;
-      case 'e': ;
-      case 'E': ulVal++;
-      case 'd': ;
-      case 'D': ulVal++;
-      case 'c': ;
-      case 'C': ulVal++;
-      case 'b': ;
-      case 'B': ulVal++;
-      case 'a': ;
-      case 'A': ulVal++;
-      case '9': ulVal++;
-      case '8': ulVal++;
-      case '7': ulVal++;
-      case '6': ulVal++;
-      case '5': ulVal++;
-      case '4': ulVal++;
-      case '3': ulVal++;
-      case '2': ulVal++;
-      case '1': ulVal++;
-    };
-  };
- return ulVal;
-};
+  Latitude =double(W[0])+double(W[1])/60.0+double(W[2])/3600.0;
+  if(W[3]==1) Latitude=-Latitude;
+  Longitude=double(W[4])+double(W[5])/60.0+double(W[6])/3600.0;
+  if(W[7]==0) Longitude=-Longitude;
+}
 
-String HexTo8D (unsigned long Hex)
+void SendLatLon(void)
 {
-  String STR0="";
-  char c = '0';
-  if (Hex<0x10000000) STR0 += c;
-  if (Hex<0x1000000)  STR0 += c;
-  if (Hex<0x100000)   STR0 += c;
-  if (Hex<0x10000)    STR0 += c;
-  if (Hex<0x1000)     STR0 += c;
-  if (Hex<0x100)      STR0 += c;
-  if (Hex<0x10)       STR0 += c;
-  return STR0;
-};
-
+  W[0]=int(abs(Latitude));
+  W[1]=int((abs(Latitude)-W[0])*60);
+  W[2]=int((abs(Latitude)-W[0]-W[1]*60)*3600);
+  if(Latitude<0) W[3]=1; else W[3]=0;
+  W[4]=int(abs(Longitude));
+  W[5]=int((abs(Longitude)-W[4])*60);
+  W[6]=int((abs(Longitude)-W[4]-W[5]*60)*3600);
+  if(Longitude<0) W[7]=0; else W[7]=1;
+  Serial.flush();
+  Serial.write(W,8);
+}

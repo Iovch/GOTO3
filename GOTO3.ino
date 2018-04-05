@@ -6,41 +6,52 @@
 
 #include "GOTO3Config.h"
 
-//#define ENABLE_XYZ_PIN 8 //Enable X,Y,Z pin
-//#define DX_STEP_PIN  5   //Контакт ардуино идущий на STEP драйвера X
-//#define DX_DIR_PIN   2   //Контакт ардуино идущий на DIR  драйвера X
-//#define DX_FORCE_PIN 9   //Разгонный пин драйвера X
-//#define DY_STEP_PIN  6   //Контакт ардуино идущий на STEP драйвера Y
-//#define DY_DIR_PIN   3   //Контакт ардуино идущий на DIR  драйвера Y
-//#define DY_FORCE_PIN 10  //Разгонный пин драйвера Y
-//#define X_JOY_SENCE  A6  //Сенсор оси Х джойстика
-//#define Y_JOY_SENCE  A7  //Сенсор оси У джойстика
+//#define ENABLE_XYZ_PIN 4 //Enable X,Y,Z pin
+//#define DX_STEP_PIN  9   //Контакт ардуино идущий на STEP драйвера X
+//#define DX_DIR_PIN   8   //Контакт ардуино идущий на DIR  драйвера X
+//#define DX_FORCE_PIN 2   //Разгонный пин драйвера X
+//#define DY_STEP_PIN  10   //Контакт ардуино идущий на STEP драйвера Y
+//#define DY_DIR_PIN   11   //Контакт ардуино идущий на DIR  драйвера Y
+//#define DY_FORCE_PIN 3  //Разгонный пин драйвера Y
+//#define X_JOY_SENCE  A5  //Сенсор оси Х джойстика
+//#define Y_JOY_SENCE  A4  //Сенсор оси У джойстика
 //#define SW_JOY_SENCE A3  //Сенсор кнопки джойстика
-//#define DZ_STEP_PIN  7   //Контакт ардуино идущий на STEP драйвера Z
-//#define DZ_DIR_PIN   4   //Контакт ардуино идущий на DIR  драйвера Z
+//#define DZ_STEP_PIN  6   //Контакт ардуино идущий на STEP драйвера Z
+//#define DZ_DIR_PIN   7   //Контакт ардуино идущий на DIR  драйвера Z
+//#define DZ_FORCE_PIN 5  //Разгонный пин драйвера Y
 //
-//int iStepsDX  =   48;    //Полных шагов на 1 оборот двигателя X
-//int iStepsXPS =  250;    //Полных шагов в секунду на двигателе X
-//int iXStepX   =   16;    //Кратность шага драйвера X
-//double dRDX   = 1780.69; //Передаточное число редуктора X
+//int iStepsDX  =   200;    //Полных шагов на 1 оборот двигателя X
+//int iStepsXPS =  1000;    //Полных шагов в секунду на двигателе X
+//int iXStepX   =   8;    //Кратность шага драйвера X
+//double dRDX   = 772.8; //Передаточное число редуктора X
 //
-//int iStepsDY  =   96;    //Полных шагов на 1 оборот двигателя Y
-//int iStepsYPS = 5000;    //Полных шагов в секунду на двигателе Y
-//int iYStepX   =    4;    //Кратность шага драйвера Y
-//double dRDY   = 3168.00; //Передаточное число редуктора Y
+//int iStepsDY  =   200;    //Полных шагов на 1 оборот двигателя Y
+//int iStepsYPS = 1000;    //Полных шагов в секунду на двигателе Y
+//int iYStepX   =    8;    //Кратность шага драйвера Y
+//double dRDY   = 492.8; //Передаточное число редуктора Y
+//
+//int iStepsDZ  =   192;    //Полных шагов на 1 оборот двигателя Z
+//int iStepsZPS = 1000;    //Полных шагов в секунду на двигателе Z
+//int iZStepX   =    8;    //Кратность шага драйвера Z
+
 
 int imStepsXPS = iStepsXPS*iXStepX; //Микрошагов в секунду на двигателе X
 int imStepsYPS = iStepsYPS*iYStepX; //Микрошагов в секунду на двигателе Y
+int imStepsZPS = iStepsZPS*iZStepX; //Микрошагов в секунду на двигателе Z
+
 
 unsigned long ulSPRA = iStepsDX*dRDX*iXStepX; //Микрошагов двигателя X на полный оборот оси прямого восхождения
 unsigned long ulSPDE = iStepsDY*dRDY*iYStepX; //Микрошагов двигателя Y на полный оборот оси склонения
+
 
 const unsigned long StarMSPS=86164091; //Милисекунд в Звездных сутках
 
 double udRAStepsPMS=double(ulSPRA)/double(StarMSPS); //Микрошагов двигателя X на 1 мс
 
 //int iStDX = -1;      //Исходное направление шага двигателя Х
-//int iStDY =  1;      //Исходное направление шага двигателя Y
+//int iStDY = -1;      //Исходное направление шага двигателя Y
+//int iStDZ = -1;      //Исходное направление шага двигателя Z
+
 int iMovement = 0;   //Может пригодиться 
 int iLastMovement=0; //Может пригодиться
 
@@ -52,6 +63,7 @@ boolean bRun    = true;   //Трекинг включен изначально
 boolean bLCD    = false;  //Скоро пригодится
 boolean bForceX = false;  //Ускоренный режим Х
 boolean bForceY = false;  //Ускоренный режим Y
+boolean bForceZ = false;  //Ускоренный режим Z
 boolean bAlignment=false; //Монтировка не выровнена
 boolean bFocus=false;     //Фокусер выключен
 
@@ -166,6 +178,26 @@ int Force_Y(boolean bForce)
   }
 }
 
+int Force_Z(boolean bForce)
+{
+  int iZSX=0;
+  if(!bForceZ&& bForce) //Включаем полношаговый режим
+  {
+    iZSX = 1; //Кратность шага драйвера Z
+    digitalWrite(DZ_FORCE_PIN, LOW);
+    imStepsZPS = iStepsZPS*iZSX; //Шагов в секунду на двигателе Z
+           bForceZ=true;
+   }
+  if(bForceZ && !bForce) //Включаем микрошаговый режим
+  {
+    iZSX = iZStepX; //Кратность шага драйвера Z
+    digitalWrite(DZ_FORCE_PIN, HIGH);
+    imStepsZPS = 500; //Микрошагов в секунду на двигателе Z
+         bForceZ=false;
+  }
+}
+
+
 void To_PRADEC(void)
 {
   int DirectRA=0;
@@ -180,7 +212,7 @@ void To_PRADEC(void)
   
   Force_X(true);
   Force_Y(true);
-  
+
   if (ulToRA > ulRA) {uldRA = (ulToRA-ulRA); DirectRA=  1;}
   if (ulToRA < ulRA) {uldRA = (ulRA-ulToRA); DirectRA= -1;}
   if (uldRA > MVRA/2) {uldRA = MVRA-uldRA; DirectRA = -(DirectRA);}
@@ -252,10 +284,10 @@ void reaction () //Обработка команд ПУ
      }
      else
      {
-      if ((iKey &   8)==  8 && iStDZ!=0) {Stepper_Z_step( iStDZ);} // Микрошаг фокусера F+
-      if ((iKey & 128)==128 && iStDZ!=0) {Stepper_Z_step( iStDZ);} // Микрошаг фокусера F+
-      if ((iKey &   2)==  2 && iStDZ!=0) {Stepper_Z_step(-iStDZ);} // Микрошаг фокусера F-
-      if ((iKey &  32)== 32 && iStDZ!=0) {Stepper_Z_step(-iStDZ);} // Микрошаг фокусера F-
+          if ((iKey &   8)==  8 && iStDZ!=0) {Force_Z (false); Stepper_Z_step( iStDZ); iMovement=iMovement |   8;} // Микрошаг фокусера F+
+      if ((iKey & 128)==128 && iStDZ!=0) {Force_Z (true);  Stepper_Z_step( iStDZ); iMovement=iMovement | 128;} // Полный шаг фокусера F+
+      if ((iKey &   2)==  2 && iStDZ!=0) {Force_Z (false); Stepper_Z_step(-iStDZ); iMovement=iMovement |   2;} // Микрошаг фокусера F-
+      if ((iKey &  32)== 32 && iStDZ!=0) {Force_Z (true);  Stepper_Z_step(-iStDZ); iMovement=iMovement |  32;} // Полный шаг фокусера F-
      }
     if ((iKey & 256)==256) 
      {
@@ -287,6 +319,8 @@ void setup()
   digitalWrite(DZ_STEP_PIN, LOW);    // LOW
   pinMode(DZ_DIR_PIN,  OUTPUT);      // DZ DIR PIN
   digitalWrite(DZ_DIR_PIN, LOW);     // LOW
+  pinMode(DZ_FORCE_PIN,  OUTPUT);    // DZ FORCE PIN
+  digitalWrite(DZ_FORCE_PIN, HIGH);  // HIGH
   pinMode(LIHT_FOC_PIN, OUTPUT);     // Пин светодиода фокусера 
   analogWrite(LIHT_FOC_PIN,0);       // выключен
   pinMode(SW_FOC_SENCE, INPUT_PULLUP); // Сенсор кнопки фокусера
@@ -322,3 +356,4 @@ void loop()
  digitalWrite(13, LOW); // Тушим LCD
  }
 }
+

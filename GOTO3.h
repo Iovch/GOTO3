@@ -75,15 +75,16 @@ int AskJOY()
   iA3 = analogRead(SW_JOY_SENCE);
     
   if(iA1<25)                { iRetValue=iRetValue | 16; } // Полный шаг X+
-  if(iA1>=25 && iA1 < 490)  { iRetValue=iRetValue |  1; } // Микрошаг X+
-  if(iA1>520 && iA1<=1000)  { iRetValue=iRetValue |  4; } // Микрошаг X-
+  if(iA1>=25 && iA1 < 475)  { iRetValue=iRetValue |  1; } // Микрошаг X+
+  if(iA1>575 && iA1<=1000)  { iRetValue=iRetValue |  4; } // Микрошаг X-
   if(iA1>1000)              { iRetValue=iRetValue | 64; } // Полный шаг X-
   
   if(iA2<25)                { iRetValue=iRetValue | 32; } // Полный шаг Y+
-  if(iA2>=25  && iA2 < 490) { iRetValue=iRetValue |  2; } // Микрошаг Y+
-  if(iA2>510  && iA2<=1000) { iRetValue=iRetValue |  8; } // Микрошаг Y-
+  if(iA2>=25  && iA2 < 500) { iRetValue=iRetValue |  2; } // Микрошаг Y+
+  if(iA2>560  && iA2<=1000) { iRetValue=iRetValue |  8; } // Микрошаг Y-
   if(iA2>1000)              { iRetValue=iRetValue | 128;} // Полный шаг Y-
 
+ 
   if(iA3<500) {iRetValue=iRetValue | 256; delay(250);}    // Включить/отключить трекинг
 
   return iRetValue;
